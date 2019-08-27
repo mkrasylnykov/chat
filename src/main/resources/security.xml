@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+
+<beans  xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+        xmlns:security="http://www.springframework.org/schema/security"
+	xmlns:p="http://www.springframework.org/schema/p" 
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	   		http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+			http://www.springframework.org/schema/security 
+			http://www.springframework.org/schema/security/spring-security-3.0.xsd">
+
+    <security:global-method-security secured-annotations="enabled" jsr250-annotations="enabled" />
+    
+    <bean id="accessDeniedHandler" class="com.mycompany.appdemo.handler.MyAccessDeniedHandler">
+        <property name="accessDeniedUrl" value="error-page.htm" />
+    </bean>
+
+    <bean id="passwordEncoder" class="org.springframework.security.authentication.encoding.Md5PasswordEncoder"/>
+
+    <bean id="saltSource" class="org.springframework.security.authentication.dao.ReflectionSaltSource">
+        <property name="userPropertyToUse" value="username"/>
+    </bean>
+
+    <security:http auto-config="false" use-expressions="true" entry-point-ref="authenticationEntryPoint">
+        <security:logout logout-url="/logout" logout-success-url="/loginpage.htm"/> 
+        <security:access-denied-handler ref="accessDeniedHandler"/>
+
+        <security:anonymous username="guest" granted-authority="ROLE_ANONYMOUS"/>
+        <security:remember-me key="chat_urbby"/>
+
+	<security:custom-filter ref="authenticationFilter" position="FORM_LOGIN_FILTER"/>
+	<security:custom-filter ref="concurrencyFilter" position="CONCURRENT_SESSION_FILTER"/>
+	<security:session-management session-authentication-strategy-ref="sas"/>
+    </security:http>
+
+    <security:authentication-manager alias="authenticationManager">
+        <security:authentication-provider>
+            <security:password-encoder ref="passwordEncoder">
+                <security:salt-source ref="saltSource"/>
+            </security:password-encoder>
+            <security:jdbc-user-service data-source-ref="dataSource" 
+                users-by-username-query= "select username,password,enabled from account where username = ?" 
+                authorities-by-username-query= "select au.username, au.authority from authority au where username = ?"/>
+        </security:authentication-provider>
+    </security:authentication-manager>
+
+
+    <bean id="authenticationFilter" class="org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter"
+            p:sessionAuthenticationStrategy-ref="sas"
+	    p:authenticationManager-ref="authenticationManager" 
+            p:authenticationFailureHandler-ref="customAuthenticationFailureHandler"
+            p:authenticationSuccessHandler-ref="customAuthenticationSuccessHandler"/>
+
+    <bean id="customAuthenticationFailureHandler" class="org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler"
+            p:defaultFailureUrl="/loginpage.htm?error=true" />
+ 		
+    <bean id="customAuthenticationSuccessHandler" class="org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler"
+            p:defaultTargetUrl="/main.htm" />
+
+    <bean id="authenticationEntryPoint"  class="org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint"
+            p:loginFormUrl="/loginpage.htm"/>
+
+    <bean id="concurrencyFilter" class="org.springframework.security.web.session.ConcurrentSessionFilter"
+            p:sessionRegistry-ref="sessionRegistry" 
+            p:expiredUrl="/loginpage.htm?error=true" />
+
+    <bean id="sas" class="org.springframework.security.web.authentication.session.ConcurrentSessionControlStrategy"
+            p:maximumSessions="1" >
+            <constructor-arg name="sessionRegistry" ref="sessionRegistry" />
+    </bean>
+
+    <bean id="sessionRegistry" class="org.springframework.security.core.session.SessionRegistryImpl" />
+
+</beans>
